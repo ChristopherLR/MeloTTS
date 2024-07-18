@@ -68,11 +68,11 @@ class TTS(nn.Module):
         for segment_data in segment_data_list:
             audio_segments += segment_data.reshape(-1).tolist()
             audio_segments += [0] * int((sr * 0.05) / speed)
-        audio_segments = np.array(audio_segments).astype(np.float32)
+        audio_segments = torch.tensor(audio_segments).float()
         return audio_segments
 
     @staticmethod
-    def split_sentences_into_pieces(text, language, quiet=False):
+    def split_sentences_into_pieces(text, language, quiet=True):
         texts = split_sentence(text, language_str=language)
         if not quiet:
             print(" > Text split to sentences.")
@@ -119,7 +119,7 @@ class TTS(nn.Module):
                         noise_scale=noise_scale,
                         noise_scale_w=noise_scale_w,
                         length_scale=1. / speed,
-                    )[0][0, 0].data.cpu().float().numpy()
+                    )[0][0, 0].data.cpu().float()
                 del x_tst, tones, lang_ids, bert, ja_bert, x_tst_lengths, speakers
                 # 
             audio_list.append(audio)
