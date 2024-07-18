@@ -9,13 +9,13 @@ readme = "README.md"
 python = "^3.12"
 gradio = "^4.38.1"
 torch = "^2.3.1"
-
 soundfile = "^0.12.1"
 torchaudio = "^2.3.1"
 g2p-en = "^2.1.0"
 transformers = "^4.42.4"
 numba = "^0.60.0"
 cached-path = "^1.6.3"
+
 [tool.poetry.group.dev.dependencies]
 black = "^24.4.2"
 
