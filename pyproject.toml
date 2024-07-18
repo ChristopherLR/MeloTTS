@@ -16,6 +16,7 @@ transformers = "^4.42.4"
 numba = "^0.60.0"
 cached-path = "^1.6.3"
 
+fastapi = "^0.111.1"
 [tool.poetry.group.dev.dependencies]
 black = "^24.4.2"
 
@@ -25,6 +26,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 app = "melo.app:main"
+http = "melo.http:start"
 
 [tool.black]
 line-length = 120
