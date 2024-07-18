@@ -5,18 +5,17 @@ import logging
 import json
 import subprocess
 import numpy as np
-from scipy.io.wavfile import read
 import torch
 import torchaudio
-import librosa
+# import librosa
+
+from melo import commons
 from melo.text import cleaned_text_to_sequence, get_bert
 from melo.text.cleaner import clean_text
-from melo import commons
 
 MATPLOTLIB_FLAG = False
 
 logger = logging.getLogger(__name__)
-
 
 
 def get_text_for_tts_infer(text, language_str, hps, device, symbol_to_id=None):
@@ -42,31 +41,26 @@ def get_text_for_tts_infer(text, language_str, hps, device, symbol_to_id=None):
         if language_str == "ZH":
             bert = bert
             ja_bert = torch.zeros(768, len(phone))
-        elif language_str in ["JP", "EN", "ZH_MIX_EN", 'KR', 'SP', 'ES', 'FR', 'DE', 'RU']:
+        elif language_str in ["JP", "EN", "ZH_MIX_EN", "KR", "SP", "ES", "FR", "DE", "RU"]:
             ja_bert = bert
             bert = torch.zeros(1024, len(phone))
         else:
             raise NotImplementedError()
 
-    assert bert.shape[-1] == len(
-        phone
-    ), f"Bert seq len {bert.shape[-1]} != {len(phone)}"
+    assert bert.shape[-1] == len(phone), f"Bert seq len {bert.shape[-1]} != {len(phone)}"
 
     phone = torch.LongTensor(phone)
     tone = torch.LongTensor(tone)
     language = torch.LongTensor(language)
     return bert, ja_bert, phone, tone, language
 
+
 def load_checkpoint(checkpoint_path, model, optimizer=None, skip_optimizer=False):
     assert os.path.isfile(checkpoint_path)
     checkpoint_dict = torch.load(checkpoint_path, map_location="cpu")
     iteration = checkpoint_dict.get("iteration", 0)
-    learning_rate = checkpoint_dict.get("learning_rate", 0.)
-    if (
-        optimizer is not None
-        and not skip_optimizer
-        and checkpoint_dict["optimizer"] is not None
-    ):
+    learning_rate = checkpoint_dict.get("learning_rate", 0.0)
+    if optimizer is not None and not skip_optimizer and checkpoint_dict["optimizer"] is not None:
         optimizer.load_state_dict(checkpoint_dict["optimizer"])
     elif optimizer is None and not skip_optimizer:
         # else:      Disable this line if Infer and resume checkpoint,then enable the line upper
@@ -109,19 +103,13 @@ def load_checkpoint(checkpoint_path, model, optimizer=None, skip_optimizer=False
     else:
         model.load_state_dict(new_state_dict, strict=False)
 
-    logger.info(
-        "Loaded checkpoint '{}' (iteration {})".format(checkpoint_path, iteration)
-    )
+    logger.info("Loaded checkpoint '{}' (iteration {})".format(checkpoint_path, iteration))
 
     return model, optimizer, learning_rate, iteration
 
 
 def save_checkpoint(model, optimizer, learning_rate, iteration, checkpoint_path):
-    logger.info(
-        "Saving model and optimizer state at iteration {} to {}".format(
-            iteration, checkpoint_path
-        )
-    )
+    logger.info("Saving model and optimizer state at iteration {} to {}".format(iteration, checkpoint_path))
     if hasattr(model, "module"):
         state_dict = model.module.state_dict()
     else:
@@ -202,9 +190,7 @@ def plot_alignment_to_numpy(alignment, info=None):
     import numpy as np
 
     fig, ax = plt.subplots(figsize=(6, 4))
-    im = ax.imshow(
-        alignment.transpose(), aspect="auto", origin="lower", interpolation="none"
-    )
+    im = ax.imshow(alignment.transpose(), aspect="auto", origin="lower", interpolation="none")
     fig.colorbar(im, ax=ax)
     xlabel = "Decoder timestep"
     if info is not None:
@@ -221,14 +207,16 @@ def plot_alignment_to_numpy(alignment, info=None):
 
 
 def load_wav_to_torch(full_path):
-    sampling_rate, data = read(full_path)
-    return torch.FloatTensor(data.astype(np.float32)), sampling_rate
+    return torchaudio.load(full_path)
 
 
 def load_wav_to_torch_new(full_path):
-    audio_norm, sampling_rate = torchaudio.load(full_path, frame_offset=0, num_frames=-1, normalize=True, channels_first=True)
+    audio_norm, sampling_rate = torchaudio.load(
+        full_path, frame_offset=0, num_frames=-1, normalize=True, channels_first=True
+    )
     audio_norm = audio_norm.mean(dim=0)
     return audio_norm, sampling_rate
+
 
 def load_wav_to_torch_librosa(full_path, sr):
     audio_norm, sampling_rate = librosa.load(full_path, sr=sr, mono=True)
@@ -250,16 +238,13 @@ def get_hparams(init=True):
         default="./configs/base.json",
         help="JSON file for configuration",
     )
-    parser.add_argument('--local_rank', type=int, default=0)
-    parser.add_argument('--world-size', type=int, default=1)
-    parser.add_argument('--port', type=int, default=10000)
+    parser.add_argument("--local_rank", type=int, default=0)
+    parser.add_argument("--world-size", type=int, default=1)
+    parser.add_argument("--port", type=int, default=10000)
     parser.add_argument("-m", "--model", type=str, required=True, help="Model name")
-    parser.add_argument('--pretrain_G', type=str, default=None,
-                            help='pretrain model')
-    parser.add_argument('--pretrain_D', type=str, default=None,
-                            help='pretrain model D')
-    parser.add_argument('--pretrain_dur', type=str, default=None,
-                            help='pretrain model duration')
+    parser.add_argument("--pretrain_G", type=str, default=None, help="pretrain model")
+    parser.add_argument("--pretrain_D", type=str, default=None, help="pretrain model D")
+    parser.add_argument("--pretrain_dur", type=str, default=None, help="pretrain model duration")
 
     args = parser.parse_args()
     model_dir = os.path.join("./logs", args.model)
@@ -298,11 +283,7 @@ def clean_checkpoints(path_to_models="logs/44k/", n_ckpts_to_keep=2, sort_by_tim
     """
     import re
 
-    ckpts_files = [
-        f
-        for f in os.listdir(path_to_models)
-        if os.path.isfile(os.path.join(path_to_models, f))
-    ]
+    ckpts_files = [f for f in os.listdir(path_to_models) if os.path.isfile(os.path.join(path_to_models, f))]
 
     def name_key(_f):
         return int(re.compile("._(\\d+)\\.pth").match(_f).group(1))
@@ -319,8 +300,7 @@ def clean_checkpoints(path_to_models="logs/44k/", n_ckpts_to_keep=2, sort_by_tim
         )
 
     to_del = [
-        os.path.join(path_to_models, fn)
-        for fn in (x_sorted("G")[:-n_ckpts_to_keep] + x_sorted("D")[:-n_ckpts_to_keep])
+        os.path.join(path_to_models, fn) for fn in (x_sorted("G")[:-n_ckpts_to_keep] + x_sorted("D")[:-n_ckpts_to_keep])
     ]
 
     def del_info(fn):
@@ -355,11 +335,7 @@ def get_hparams_from_file(config_path):
 def check_git_hash(model_dir):
     source_dir = os.path.dirname(os.path.realpath(__file__))
     if not os.path.exists(os.path.join(source_dir, ".git")):
-        logger.warn(
-            "{} is not a git repository, therefore hash value comparison will be ignored.".format(
-                source_dir
-            )
-        )
+        logger.warn("{} is not a git repository, therefore hash value comparison will be ignored.".format(source_dir))
         return
 
     cur_hash = subprocess.getoutput("git rev-parse HEAD")
@@ -368,11 +344,7 @@ def check_git_hash(model_dir):
     if os.path.exists(path):
         saved_hash = open(path).read()
         if saved_hash != cur_hash:
-            logger.warn(
-                "git hash values are different. {}(saved) != {}(current)".format(
-                    saved_hash[:8], cur_hash[:8]
-                )
-            )
+            logger.warn("git hash values are different. {}(saved) != {}(current)".format(saved_hash[:8], cur_hash[:8]))
     else:
         open(path, "w").write(cur_hash)
 
